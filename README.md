@@ -1,7 +1,7 @@
 # Epson Sensing Units (IMU or Accelerometer) SPI Driver for Arduino
 -----------------------------
 
-This is an example test library for the Epson M-G3xx/M-A352
+This is an example test library for the Epson M-G3xxx/M-A352
 Sensing Units (SU) using the SPI interface. 
 It was specifically developed for use with the Arduino Teensy 3.6 
 development board (Teensyduino) and includes example applications that 
