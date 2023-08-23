@@ -19,14 +19,14 @@
   to the Teensy 3.6 header (hardware SPI). The pins are mapped as shown below.
 
   Circuit Pinmapping:
-  Signal Teensy 3.6 Arduino DUE    Other 3.3V Arduino   M-Gseries         M-Vseries
-  -----------------------------------------------------------------------------------
-  DRDY:  pin 6      pin 6          pin 6                pin 13            pin 14
-  CSB:   pin 4      pin 4          pin 4                pin 6             pin 8
-  MOSI:  pin 11     SPI-4          ICSP-4               pin 5             pin 2
-  MISO:  pin 12     SPI-1          ICSP-1               pin 2             pin 6
-  SCK:   pin 13     SPI-3          ICSP-3               pin 1             pin 4
-  RST#:  pin 7      pin-7          pin 7                pin 16            pin 18
+  Signal Teensy 3.6 Arduino DUE    Other 3.3V Arduino   M-Gseries M-Vseries
+  --------------------------------------------------------------------------
+  DRDY   pin 6      pin 6          pin 6                pin 13    pin 14
+  CSB    pin 4      pin 4          pin 4                pin 6     pin 8
+  MOSI   pin 11     SPI-4          ICSP-4               pin 5     pin 2
+  MISO   pin 12     SPI-1          ICSP-1               pin 2     pin 6
+  SCK    pin 13     SPI-3          ICSP-3               pin 1     pin 4
+  RST#   pin 7      pin-7          pin 7                pin 16    pin 18
 
   NOTE: For Teensy 3.6, the SPI interface glitches during initialization.
         The errant glitch can cause SPI communication error during flash
@@ -78,34 +78,38 @@
 
 // Chipselect,DataReady, Reset, and EXT must be assigned as GPIO
 // as per pin assignment listed in the header description above.
-const uint8_t EPSON_CS    = 4;  //Arduino pin 4
-const uint8_t EPSON_DRDY  = 6;  //Arduino pin 6
-const uint8_t EPSON_RESET = 7;  //Arduino pin 7
+const uint8_t EPSON_CS = 4;     // Arduino pin 4
+const uint8_t EPSON_DRDY = 6;   // Arduino pin 6
+const uint8_t EPSON_RESET = 7;  // Arduino pin 7
 
 // When using HW SPI interface, instantiate class with CS, DRDY, RESET pins
 EPSON_DEV su(EPSON_CS, EPSON_DRDY, EPSON_RESET);  // Hardware SPI
 
 // SCK, MOSI, MISO are assigned to GPIO when using "software" emulated SPI
-//const uint8_t EPSON_SCK  = 13;  //Arduino pin 13
-//const uint8_t EPSON_MOSI = 11;  //Arduino pin 11
-//const uint8_t EPSON_MISO = 12;  //Arduino pin 12
+// const uint8_t EPSON_SCK  = 13;  //Arduino pin 13
+// const uint8_t EPSON_MOSI = 11;  //Arduino pin 11
+// const uint8_t EPSON_MISO = 12;  //Arduino pin 12
 
-// When using SW emulated SPI interface, instantiate class with SCK, MISO, MOSI, CS, DRDY, RESET pins
-//EPSON_DEV su(EPSON_SCK, EPSON_MISO, EPSON_MOSI, EPSON_CS, EPSON_DRDY, EPSON_RESET);  // Software SPI
+// When using SW emulated SPI interface, instantiate class with SCK, MISO, MOSI,
+// CS, DRDY, RESET pins
+// EPSON_DEV su(EPSON_SCK, EPSON_MISO, EPSON_MOSI, EPSON_CS, EPSON_DRDY,
+// EPSON_RESET);  // Software SPI
 
 /*------------------------------------------------------------------------------
  * setup()
  *
  *------------------------------------------------------------------------------*/
 void setup() {
-  SerialConsole.begin(250000);   // Setup Serial communications for 250000bps
+  SerialConsole.begin(250000);  // Setup Serial communications for 250000bps
   while (!SerialConsole) {
-    ; // Wait for serial port to connect. Needed for native USB port only
+    ;  // Wait for serial port to connect. Needed for native USB port only
   }
 
-  if (!su.begin()){
-    SerialConsole.println("Error. Can not communicate properly with " EPSON_UNIT_TYPE);
-    while (1);
+  if (!su.begin()) {
+    SerialConsole.println(
+        "Error. Can not communicate properly with " EPSON_UNIT_TYPE);
+    while (1)
+      ;
   }
 
   // Toggle SU Reset Line & wait for reset delay time
@@ -114,7 +118,8 @@ void setup() {
   // Initialize SU with settings
   if (!su.sensorInit(CMD_RATEX, CMD_FILTERX)) {
     SerialConsole.println("Error. Can not initialize " EPSON_UNIT_TYPE);
-    while (1);
+    while (1)
+      ;
   }
   SerialConsole.println(EPSON_UNIT_TYPE " Init Done");
 }
@@ -134,7 +139,8 @@ void loop() {
   // Go to SAMPLING mode
   if (!su.sensorStart()) {
     SerialConsole.println("Error. Sensor not entering Sampling mode");
-    while (1);
+    while (1)
+      ;
   }
 
   su.sensorHeaderPrint();
@@ -144,22 +150,22 @@ void loop() {
     if (su.sensorReadBurst(readData, 64)) {
       // Output formatted to console
       su.sensorDataPrint(readData, sampleCount);
-    }
-    else {
+    } else {
       SerialConsole.println("#Timeout waiting for DRDY.");
     }
     sampleCount++;
 
     // If sampleCount reaches limit stop application
     if (sampleCount >= MAXSAMPLE) {
-        if (!su.sensorStop()) {
-          SerialConsole.println("Error. Sensor not entering Sampling mode");
-          while (1);
-        }
+      if (!su.sensorStop()) {
+        SerialConsole.println("Error. Sensor not entering Sampling mode");
+        while (1)
+          ;
+      }
       SerialConsole.println("Done.");
       su.registerDump();
-      while (1); // Stops further execution
+      while (1)
+        ;  // Stops further execution
     }
   }
 }
-

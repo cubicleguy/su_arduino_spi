@@ -9,7 +9,7 @@
     v1.0 - First release
     v1.1 - Refactoring
     v1.2 - Added constructor initialization list, remove debug code, cleanup
-
+    v1.3 - Added ADDR_ID check during init
     @section LICENSE
 
     Software License Agreement (BSD License, see license.txt)
@@ -27,9 +27,9 @@
        this list of conditions and the following disclaimer in the documentation
        and/or other materials provided with the distribution.
 
-    3. Neither the name of the copyright holder nor the names of its contributors
-       may be used to endorse or promote products derived from this software
-       without specific prior written permission.
+    3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from this
+   software without specific prior written permission.
 
     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
@@ -58,25 +58,26 @@
     Constructor
 */
 /**************************************************************************/
-//Hardware SPI constructor
-SPI_EPSON_COM::SPI_EPSON_COM(int8_t cs, int8_t drdy, int8_t nrst):
-  // initializer list
-  _burstCnt_calculated(0),
-  _initialised(false),
-  _clk(-1),  //using hardware SPI
-  _mosi(-1),
-  _miso(-1) {
-    _cs = cs;
-    _drdy = drdy;                 //store ChipSelect and DataReady pins
-    _nrst = nrst;                 //store nRESET pin
+// Hardware SPI constructor
+SPI_EPSON_COM::SPI_EPSON_COM(int8_t cs, int8_t drdy, int8_t nrst)
+    :  // initializer list
+      _burstCnt_calculated(0),
+      _initialised(false),
+      _clk(-1),  // using hardware SPI
+      _mosi(-1),
+      _miso(-1) {
+  _cs = cs;
+  _drdy = drdy;  // store ChipSelect and DataReady pins
+  _nrst = nrst;  // store nRESET pin
 }
 
-//Software SPI constructor
-SPI_EPSON_COM::SPI_EPSON_COM(int8_t clk, int8_t miso, int8_t mosi, int8_t cs, int8_t drdy, int8_t nrst):
-  // initializer list
-  _burstCnt_calculated(0),
-  _initialised(false) {
-  //using software SPI so assign GPIO pin numbers for pins
+// Software SPI constructor
+SPI_EPSON_COM::SPI_EPSON_COM(int8_t clk, int8_t miso, int8_t mosi, int8_t cs,
+                             int8_t drdy, int8_t nrst)
+    :  // initializer list
+      _burstCnt_calculated(0),
+      _initialised(false) {
+  // using software SPI so assign GPIO pin numbers for pins
   _cs = cs;
   _clk = clk;
   _mosi = mosi;
@@ -84,7 +85,6 @@ SPI_EPSON_COM::SPI_EPSON_COM(int8_t clk, int8_t miso, int8_t mosi, int8_t cs, in
   _drdy = drdy;
   _nrst = nrst;
 }
-
 
 /*========================================================================*/
 /*                           PUBLIC FUNCTIONS                             */
@@ -100,91 +100,114 @@ SPI_EPSON_COM::SPI_EPSON_COM(int8_t clk, int8_t miso, int8_t mosi, int8_t cs, in
                otherwise True
 */
 /**************************************************************************/
-boolean SPI_EPSON_COM::begin(void){
-    // Configure DataReady Input pin
-    pinMode(_drdy, INPUT);
-    SerialConsole.print("DRDY on "); SerialConsole.println(_drdy, DEC);
-    // Configure nRESET pin for output
-    pinMode(_nrst, OUTPUT);
-    SerialConsole.print("nRST on "); SerialConsole.println(_nrst, DEC);
-    digitalWrite(_nrst, LOW);
-    SerialConsole.print("Platform: ");
-    if (_clk == -1) {  // For hardware SPI
+boolean SPI_EPSON_COM::begin(void) {
+  boolean ok = true;
+
+  // Configure DataReady Input pin
+  pinMode(_drdy, INPUT);
+  SerialConsole.print("DRDY on ");
+  SerialConsole.println(_drdy, DEC);
+  // Configure nRESET pin for output
+  pinMode(_nrst, OUTPUT);
+  SerialConsole.print("nRST on ");
+  SerialConsole.println(_nrst, DEC);
+  digitalWrite(_nrst, LOW);
+  SerialConsole.print("Platform: ");
+  if (_clk == -1) {  // For hardware SPI
 #ifdef __SAM3X8E__
-        SerialConsole.println("Arduino DUE");
-        // When Arduino DUE detected use SPI Extensions for DUE
-        SPI.begin(_cs);
-        SPI.setClockDivider (_cs,84);  // 84/84 = 1 MHz
-        SPI.setBitOrder(_cs,MSBFIRST);
-        SPI.setDataMode(_cs,SPI_MODE3);
-#elif defined(__MK66FX1M0__)    // Teensy 3.6
-        SerialConsole.println("Teensy 3.6");
-        // Use regular SPI
-        pinMode(_cs, OUTPUT);
-        digitalWrite(_cs, HIGH);
-        SPI.begin();
-        SPI.beginTransaction(SPISettings(500000, MSBFIRST, SPI_MODE3));
+    SerialConsole.println("Arduino DUE");
+    // When Arduino DUE detected use SPI Extensions for DUE
+    SPI.begin(_cs);
+    SPI.setClockDivider(_cs, 84);  // 84/84 = 1 MHz
+    SPI.setBitOrder(_cs, MSBFIRST);
+    SPI.setDataMode(_cs, SPI_MODE3);
+#elif defined(__MK66FX1M0__)  // Teensy 3.6
+    SerialConsole.println("Teensy 3.6");
+    // Use regular SPI
+    pinMode(_cs, OUTPUT);
+    digitalWrite(_cs, HIGH);
+    SPI.begin();
+    SPI.beginTransaction(SPISettings(500000, MSBFIRST, SPI_MODE3));
 #else
-        SerialConsole.println("Normal Arduino");
-        // For standard Arduino UNO etc. use regular SPI
-        pinMode(_cs, OUTPUT);
-        digitalWrite(_cs, HIGH);
-        SPI.begin();
-        SPI.beginTransaction(SPISettings(500000, MSBFIRST, SPI_MODE3));
+    SerialConsole.println("Normal Arduino");
+    // For standard Arduino UNO etc. use regular SPI
+    pinMode(_cs, OUTPUT);
+    digitalWrite(_cs, HIGH);
+    SPI.begin();
+    SPI.beginTransaction(SPISettings(500000, MSBFIRST, SPI_MODE3));
 #endif
-    }
-    else {
-        //setup pins for software emulated SPI
-        SerialConsole.println("Software Emulated SPI");
-        pinMode(_cs, OUTPUT);
-        digitalWrite(_cs, HIGH);
-        pinMode(_clk, OUTPUT);
-        digitalWrite(_clk, HIGH);
-        pinMode(_mosi, OUTPUT);
-        pinMode(_miso, INPUT);
-    }
+  } else {
+    // setup pins for software emulated SPI
+    SerialConsole.println("Software Emulated SPI");
+    pinMode(_cs, OUTPUT);
+    digitalWrite(_cs, HIGH);
+    pinMode(_clk, OUTPUT);
+    digitalWrite(_clk, HIGH);
+    pinMode(_mosi, OUTPUT);
+    pinMode(_miso, INPUT);
+  }
 
-    // Set nRESET pin HIGH
-    digitalWrite(_nrst, HIGH);
-    EpsonPowerOnDelay();
+  // Set nRESET pin HIGH
+  digitalWrite(_nrst, HIGH);
+  EpsonPowerOnDelay();
 
-    // Sanity Check for DRDY = LOW  (This assumes DRDY is configured active HIGH)
-    // If the SU is configured for DRDY active LOW, then this validation check will fail
-    SerialConsole.println("Check DRDY");
-    boolean ok = waitDataReady(false, EPSON_DRDYCHECK);
+  // Sanity Check for DRDY = LOW  (This assumes DRDY is configured active HIGH)
+  // If the SU is configured for DRDY active LOW, then this validation check
+  // will fail
+  SerialConsole.println("Check DRDY");
+  ok = waitDataReady(false, EPSON_DRDYCHECK);
+  if (ok == false) {
+    SerialConsole.println(
+        "Error: Timeout waiting for DRDY = LOW, DataReady pin appears stuck "
+        "HIGH");
+    SerialConsole.println("Attempting hardware reset...");
+    sensorHWReset();
+
+    // Sanity Check for DRDY = LOW  (This assumes DRDY is configured active
+    // HIGH) If the device is configured for DRDY active LOW, then this
+    // validation check will fail
+    ok = waitDataReady(false, EPSON_DRDYCHECK);
+
     if (ok == false) {
-        SerialConsole.println("Error: Timeout waiting for DRDY = LOW, DataReady pin appears stuck HIGH");
-        SerialConsole.println("Attempting hardware reset...");
-        sensorHWReset();
-
-        // Sanity Check for DRDY = LOW  (This assumes DRDY is configured active HIGH)
-        // If the SU is configured for DRDY active LOW, then this validation check will fail
-        ok = waitDataReady(false, EPSON_DRDYCHECK);
-
-        if (ok == false) {
-            SerialConsole.println("Error: Could not reset sensor, DataReady pin appears stuck HIGH");
-        }
+      SerialConsole.println(
+          "Error: Could not reset sensor, DataReady pin appears stuck HIGH");
     }
-    if (ok == true) {
+  }
 
-        char modelNameReturned[9];
-        getProdID(modelNameReturned);
+  // Check ID register for IMU/Accel
+  SerialConsole.print("Checking device is present...");
+  uint16_t retVal = regRead16(CMD_WINDOW0, ADDR_ID);
+  if (retVal == 0x5345) {
+    SerialConsole.println("device responded");
+  } else {
+    ok = false;
+    SerialConsole.println("no device response");
+  }
 
-        int result = strcmp(modelNameReturned, EPSON_MODEL_STR);
-        if (result == 0) {
-            SerialConsole.println(EPSON_MODEL_STR " Detected");
-            _initialised = true;
-        }
-        else {
-            char unexpstr[128];
-            sprintf(unexpstr, EPSON_UNIT_TYPE " Device Error - Expected: " EPSON_MODEL_STR ", Detected : %s", modelNameReturned);
-            SerialConsole.println(unexpstr);
-        }
+  // If device is present, read product ID
+  if (ok == true) {
+    char modelNameReturned[9];
+    getProdID(modelNameReturned);
+
+    int result = strcmp(modelNameReturned, EPSON_MODEL_STR);
+    if (result == 0) {
+      SerialConsole.println(EPSON_MODEL_STR " Detected");
+      _initialised = true;
+    } else {
+      char unexpstr[128];
+      sprintf(unexpstr,
+              "***" EPSON_UNIT_TYPE " Device Error - Expected: " EPSON_MODEL_STR
+              ", Detected : %s",
+              modelNameReturned);
+      SerialConsole.println(unexpstr);
+      SerialConsole.println(
+          "Make sure correct device model matches with configuration in "
+          "epson_devices.h");
     }
-    //return the current initialized state
-    return _initialised;
+  }
+  // return the current initialized state
+  return _initialised;
 }
-
 
 /**************************************************************************/
 /*!
@@ -200,22 +223,22 @@ boolean SPI_EPSON_COM::begin(void){
                 boolean to enabled debug output of register access
 */
 /**************************************************************************/
-void SPI_EPSON_COM::regWrite8(uint8_t winid, uint8_t addr, uint8_t value, boolean verbose) {
-
+void SPI_EPSON_COM::regWrite8(uint8_t winid, uint8_t addr, uint8_t value,
+                              boolean verbose) {
   // Set ChipSelect
   digitalWrite(_cs, LOW);
 
 #ifndef EPSON_V340
   // Send the window command & win ID
   SPItransfer(ADDR_WIN_CTRL | 0x80);
-  SPItransfer(winid & 0x01); // mask off unused bits
+  SPItransfer(winid & 0x01);  // mask off unused bits
 
   // Delay between 16 bit transfers
   EpsonStall();
 #endif
 
   // Send the address (command) to be written
-  SPItransfer(addr | 0x80); // msb is set 1b for register write
+  SPItransfer(addr | 0x80);  // msb is set 1b for register write
   // Write data value
   SPItransfer(value);
 
@@ -228,7 +251,7 @@ void SPI_EPSON_COM::regWrite8(uint8_t winid, uint8_t addr, uint8_t value, boolea
   // If debug output selected, print information about the transfer
   if (verbose) {
     SerialConsole.print("REG[0x");
-    SerialConsole.print((addr&0x7F), HEX);
+    SerialConsole.print((addr & 0x7F), HEX);
 #ifndef EPSON_V340
     SerialConsole.print(" W(");
     SerialConsole.print(winid, DEC);
@@ -238,7 +261,6 @@ void SPI_EPSON_COM::regWrite8(uint8_t winid, uint8_t addr, uint8_t value, boolea
     SerialConsole.println(value, HEX);
   }
 }
-
 
 /**************************************************************************/
 /*!
@@ -253,22 +275,22 @@ void SPI_EPSON_COM::regWrite8(uint8_t winid, uint8_t addr, uint8_t value, boolea
     @returns    The 16-bit value retrieved from register
 */
 /**************************************************************************/
-uint16_t SPI_EPSON_COM::regRead16(uint8_t winid, uint8_t addr, boolean verbose) {
-
-  //set ChipSelect
+uint16_t SPI_EPSON_COM::regRead16(uint8_t winid, uint8_t addr,
+                                  boolean verbose) {
+  // set ChipSelect
   digitalWrite(_cs, LOW);
 
 #ifndef EPSON_V340
   // Send the window command & win ID
   SPItransfer(ADDR_WIN_CTRL | 0x80);
-  SPItransfer(winid & 0x01); // mask off unused bits
+  SPItransfer(winid & 0x01);  // mask off unused bits
 
   // Delay between 16 bit transfers
   EpsonStall();
 #endif
 
   // Send the address
-  SPItransfer(addr & 0x7F); // msb is set 0b for register read
+  SPItransfer(addr & 0x7F);  // msb is set 0b for register read
   // Send dummy byte
   SPItransfer(0x00);
 
@@ -276,7 +298,7 @@ uint16_t SPI_EPSON_COM::regRead16(uint8_t winid, uint8_t addr, boolean verbose) 
   EpsonStall();
 
   // Initiate 16-bit dummy cycle to return data
-  uint16_t readData = SPItransfer(0x00)<<8 | SPItransfer(0x00);
+  uint16_t readData = SPItransfer(0x00) << 8 | SPItransfer(0x00);
 
   // Release ChipSelect
   digitalWrite(_cs, HIGH);
@@ -287,7 +309,7 @@ uint16_t SPI_EPSON_COM::regRead16(uint8_t winid, uint8_t addr, boolean verbose) 
   // If debug output selected, print information about the transfer
   if (verbose) {
     SerialConsole.print("REG[0x");
-    SerialConsole.print((addr&0x7F), HEX);
+    SerialConsole.print((addr & 0x7F), HEX);
 #ifndef EPSON_V340
     SerialConsole.print(" W(");
     SerialConsole.print(winid, DEC);
@@ -300,10 +322,6 @@ uint16_t SPI_EPSON_COM::regRead16(uint8_t winid, uint8_t addr, boolean verbose) 
   return readData;
 }
 
-
-
-
-
 /**************************************************************************/
 /*!
     @brief  Goes to SAMPLING Mode
@@ -312,23 +330,22 @@ uint16_t SPI_EPSON_COM::regRead16(uint8_t winid, uint8_t addr, boolean verbose) 
 */
 /**************************************************************************/
 boolean SPI_EPSON_COM::sensorStart(void) {
+  boolean result = false;
 
-    boolean result = false;
+  gotoSamplingMode();
+  delayMicroseconds(1000);
 
-    gotoSamplingMode();
-    delayMicroseconds(1000);
-
-    // Check that MODE_STAT bit returns 0, cycles out after 10,000 tries
-    for (int32_t i=0; i<10000; i++) {
-        uint16_t valRead = regRead16(CMD_WINDOW0, ADDR_MODE_CTRL_LO) & VAL_CONFIG_MASK;
-        if (valRead == VAL_SAMPLING_MODE){
-            result = true;
-            break;
-        }
+  // Check that MODE_STAT bit returns 0, cycles out after 10,000 tries
+  for (int32_t i = 0; i < 10000; i++) {
+    uint16_t valRead =
+        regRead16(CMD_WINDOW0, ADDR_MODE_CTRL_LO) & VAL_CONFIG_MASK;
+    if (valRead == VAL_SAMPLING_MODE) {
+      result = true;
+      break;
     }
+  }
   return result;
 }
-
 
 /**************************************************************************/
 /*!
@@ -338,23 +355,22 @@ boolean SPI_EPSON_COM::sensorStart(void) {
 */
 /**************************************************************************/
 boolean SPI_EPSON_COM::sensorStop(void) {
+  boolean result = false;
 
-    boolean result = false;
+  gotoConfigMode();
+  delayMicroseconds(1000);
 
-    gotoConfigMode();
-    delayMicroseconds(1000);
-
-    // Check that MODE_STAT bit returns 0, cycles out after 10,000 tries
-    for (int32_t i=0; i<10000; i++) {
-        uint16_t valRead = regRead16(CMD_WINDOW0, ADDR_MODE_CTRL_LO) & VAL_CONFIG_MASK;
-        if (valRead == VAL_CONFIG_MODE){
-            result = true;
-            break;
-        }
+  // Check that MODE_STAT bit returns 0, cycles out after 10,000 tries
+  for (int32_t i = 0; i < 10000; i++) {
+    uint16_t valRead =
+        regRead16(CMD_WINDOW0, ADDR_MODE_CTRL_LO) & VAL_CONFIG_MASK;
+    if (valRead == VAL_CONFIG_MODE) {
+      result = true;
+      break;
     }
+  }
   return result;
 }
-
 
 /**************************************************************************/
 /*!
@@ -366,31 +382,28 @@ boolean SPI_EPSON_COM::sensorStop(void) {
 */
 /**************************************************************************/
 uint16_t SPI_EPSON_COM::sensorSelfTest(void) {
+  uint16_t valRead;
 
-    uint16_t valRead;
+  if (!sensorStop()) {
+    SerialConsole.println("Warning: Not entering Config Mode");
+  }
 
-    if (!sensorStop()) {
-        SerialConsole.println("Warning: Not entering Config Mode");
-    }
+  // Send the self test command
+  regWrite8(CMD_WINDOW1, ADDR_MSC_CTRL_HI, CMD_SELFTEST);
 
-    // Send the self test command
-    regWrite8(CMD_WINDOW1, ADDR_MSC_CTRL_HI, CMD_SELFTEST);
+  // Wait for self test to process
+  EpsonSelfTestDelay();
 
-    // Wait for self test to process
-    EpsonSelfTestDelay();
-
-    // Check that SELF_TEST bit returns 0
-    valRead = regRead16(CMD_WINDOW1, ADDR_MSC_CTRL_LO) & VAL_SELF_TEST_BIT;
-    if ( valRead ){
-        valRead = 0xFFFF;   // SELF_TEST bit is stuck 1b
-    }
-    else {
-        // Read the results in DIAG_STAT
-        valRead = regRead16(CMD_WINDOW0, ADDR_DIAG_STAT) & VAL_DIAG_STAT_MASK;
-    }
-    return valRead;
+  // Check that SELF_TEST bit returns 0
+  valRead = regRead16(CMD_WINDOW1, ADDR_MSC_CTRL_LO) & VAL_SELF_TEST_BIT;
+  if (valRead) {
+    valRead = 0xFFFF;  // SELF_TEST bit is stuck 1b
+  } else {
+    // Read the results in DIAG_STAT
+    valRead = regRead16(CMD_WINDOW0, ADDR_DIAG_STAT) & VAL_DIAG_STAT_MASK;
+  }
+  return valRead;
 }
-
 
 /**************************************************************************/
 /*!
@@ -401,27 +414,26 @@ uint16_t SPI_EPSON_COM::sensorSelfTest(void) {
 */
 /**************************************************************************/
 boolean SPI_EPSON_COM::sensorHWReset(void) {
+  boolean result = false;
+  // Asserts the nRESET pin LOW
+  digitalWrite(_nrst, LOW);
+  EpsonResetAssertDelay();
 
-    boolean result = false;
-    // Asserts the nRESET pin LOW
-    digitalWrite(_nrst, LOW);
-    EpsonResetAssertDelay();
+  // Asserts the nRESET pin HIGH
+  digitalWrite(_nrst, HIGH);
 
-    // Asserts the nRESET pin HIGH
-    digitalWrite(_nrst, HIGH);
+  // Wait for the sensor re-initialization
+  EpsonPowerOnDelay();
 
-    // Wait for the sensor re-initialization
-    EpsonPowerOnDelay();
+  // Check NOT_READY bit = 0
+  uint16_t valRead = regRead16(CMD_WINDOW1, ADDR_GLOB_CMD_LO) & VAL_NOT_READY;
+  if (valRead == 0) {
+    result = true;
+  }
 
-    // Check NOT_READY bit = 0
-    uint16_t valRead = regRead16(CMD_WINDOW1, ADDR_GLOB_CMD_LO) & VAL_NOT_READY;
-    if (valRead == 0){
-        result = true;
-    }
+  _burstCnt_calculated = 0;
 
-    _burstCnt_calculated = 0;
-
-    return result;
+  return result;
 }
 
 /**************************************************************************/
@@ -433,26 +445,24 @@ boolean SPI_EPSON_COM::sensorHWReset(void) {
 */
 /**************************************************************************/
 boolean SPI_EPSON_COM::sensorReset(void) {
+  boolean result = false;
 
-    boolean result = false;
+  // Set the RESET bit
+  regWrite8(CMD_WINDOW1, ADDR_GLOB_CMD_LO, CMD_SOFTRESET);
 
-    // Set the RESET bit
-    regWrite8(CMD_WINDOW1, ADDR_GLOB_CMD_LO, CMD_SOFTRESET);
+  // Wait for the sensor software reset to process
+  EpsonSwResetDelay();
 
-    // Wait for the sensor software reset to process
-    EpsonSwResetDelay();
+  // Check NOT_READY bit = 0
+  uint16_t valRead = regRead16(CMD_WINDOW1, ADDR_GLOB_CMD_LO) & VAL_NOT_READY;
+  if (valRead == 0) {
+    result = true;
+  }
 
-    // Check NOT_READY bit = 0
-    uint16_t valRead = regRead16(CMD_WINDOW1, ADDR_GLOB_CMD_LO) & VAL_NOT_READY;
-    if (valRead == 0){
-        result = true;
-    }
+  _burstCnt_calculated = 0;
 
-    _burstCnt_calculated = 0;
-
-    return result;
+  return result;
 }
-
 
 /**************************************************************************/
 /*!
@@ -465,31 +475,28 @@ boolean SPI_EPSON_COM::sensorReset(void) {
 */
 /**************************************************************************/
 boolean SPI_EPSON_COM::sensorFlashTest(void) {
+  uint16_t valRead;
 
-    uint16_t valRead;
+  if (!sensorStop()) {
+    SerialConsole.println("Warning: Not entering Config Mode");
+  }
 
-    if (!sensorStop()) {
-        SerialConsole.println("Warning: Not entering Config Mode");
-    }
+  // Send the self test command
+  regWrite8(CMD_WINDOW1, ADDR_MSC_CTRL_HI, CMD_FLASHTEST);
 
-    // Send the self test command
-    regWrite8(CMD_WINDOW1, ADDR_MSC_CTRL_HI, CMD_FLASHTEST);
+  // Wait for self test to process
+  EpsonFlashTestDelay();
 
-    // Wait for self test to process
-    EpsonFlashTestDelay();
-
-    // Check that Flash_TEST bit returns 0
-    valRead = regRead16(CMD_WINDOW1, ADDR_MSC_CTRL_LO) & VAL_FLASH_STATUS_BIT;
-    if (valRead & VAL_FLASH_STATUS_BIT){
-        valRead = 0xFFFF;   // SELF_TEST bit is stuck 1b
-    }
-    else {
-        // Read the results in DIAG_STAT
-        valRead = regRead16(CMD_WINDOW0, ADDR_DIAG_STAT) & VAL_DIAG_FLASH_ERR;
-    }
-    return (valRead == VAL_DIAG_FLASH_ERR) ? false : true;
+  // Check that Flash_TEST bit returns 0
+  valRead = regRead16(CMD_WINDOW1, ADDR_MSC_CTRL_LO) & VAL_FLASH_STATUS_BIT;
+  if (valRead & VAL_FLASH_STATUS_BIT) {
+    valRead = 0xFFFF;  // SELF_TEST bit is stuck 1b
+  } else {
+    // Read the results in DIAG_STAT
+    valRead = regRead16(CMD_WINDOW0, ADDR_DIAG_STAT) & VAL_DIAG_FLASH_ERR;
+  }
+  return (valRead == VAL_DIAG_FLASH_ERR) ? false : true;
 }
-
 
 /**************************************************************************/
 /*!
@@ -511,28 +518,25 @@ boolean SPI_EPSON_COM::sensorFlashTest(void) {
 */
 /**************************************************************************/
 boolean SPI_EPSON_COM::sensorReadBurst(uint16_t* arr, uint8_t len) {
+  const uint32_t retries = 100000;
 
-    if (_burstCnt_calculated)
-        len = _burstCnt_calculated>>1;
+  if (_burstCnt_calculated) len = _burstCnt_calculated >> 1;
 
-    if (!waitDataReady(true, 100000)) return false;
+  if (!waitDataReady(true, retries)) return false;
 #ifdef EPSON_V340
-    // Normal sequential 16-bit reads
-    readN(arr, CMD_BURST, len);
+  // Normal sequential 16-bit reads
+  readN(arr, CMD_BURST, len);
 #else
-    // SPI Burst 16-bit reads
-    readNB(arr, CMD_BURST, len);
+  // SPI Burst 16-bit reads
+  readNB(arr, CMD_BURST, len);
 #endif
 
-   return true;
+  return true;
 }
-
-
 
 /*========================================================================*/
 /*                           PRIVATE FUNCTIONS                             */
 /*========================================================================*/
-
 
 /**************************************************************************/
 /*!
@@ -555,17 +559,15 @@ boolean SPI_EPSON_COM::waitDataReady(boolean polarity, uint32_t retryMaxCount) {
   // Loop continuously to check the status of DataReady until Low or timeout
   do {
     retryCount++;
-    delayMicroseconds(10);     // 10 usec
-  } while ((digitalRead(_drdy)!=polarity) & (retryCount < retryMaxCount));
+    delayMicroseconds(10);  // 10 usec
+  } while ((digitalRead(_drdy) != polarity) & (retryCount < retryMaxCount));
 
   // return true on success, or fail for a timeout
   if (retryCount < retryMaxCount)
-    return true; // success
+    return true;  // success
   else
-    return false; // fail
+    return false;  // fail
 }
-
-
 
 /**************************************************************************/
 /*!
@@ -577,22 +579,21 @@ boolean SPI_EPSON_COM::waitDataReady(boolean polarity, uint32_t retryMaxCount) {
 /**************************************************************************/
 boolean SPI_EPSON_COM::isConfigMode(void) {
   // get current mode and mask the bits that we want
-  uint16_t modeStatus = regRead16(CMD_WINDOW0, ADDR_MODE_CTRL_LO) & VAL_CONFIG_MASK;
+  uint16_t modeStatus =
+      regRead16(CMD_WINDOW0, ADDR_MODE_CTRL_LO) & VAL_CONFIG_MASK;
   return (modeStatus == VAL_CONFIG_MODE) ? true : false;
 }
-
 
 /**************************************************************************/
 /*!
     @brief  Places the sensor into Sampling Mode.
-            The sensor must be correctly configured before calling this function.
-            This should be only called from Config Mode.
+            The sensor must be correctly configured before calling this
+   function. This should be only called from Config Mode.
 */
 /**************************************************************************/
 void SPI_EPSON_COM::gotoSamplingMode(void) {
   regWrite8(CMD_WINDOW0, ADDR_MODE_CTRL_HI, CMD_BEGIN_SAMPLING);
 }
-
 
 /**************************************************************************/
 /*!
@@ -603,7 +604,6 @@ void SPI_EPSON_COM::gotoSamplingMode(void) {
 void SPI_EPSON_COM::gotoConfigMode(void) {
   regWrite8(CMD_WINDOW0, ADDR_MODE_CTRL_HI, CMD_END_SAMPLING);
 }
-
 
 /**************************************************************************/
 /*!
@@ -622,21 +622,21 @@ void SPI_EPSON_COM::gotoConfigMode(void) {
                  (excluding the header & delimiter bytes)
 */
 /**************************************************************************/
-void SPI_EPSON_COM::readNB (uint16_t* arrayOut, uint8_t addr, uint8_t readLength) {
-
+void SPI_EPSON_COM::readNB(uint16_t* arrayOut, uint8_t addr,
+                           uint8_t readLength) {
   // set ChipSelect
   digitalWrite(_cs, LOW);
 
   // send the starting address to be read
-  SPItransfer(addr); // address
-  SPItransfer(00);   // dummy byte
+  SPItransfer(addr);  // address
+  SPItransfer(00);    // dummy byte
 
   // delay after 1st command
   EpsonBurstStall1();
 
   // read the required number of words
   for (int8_t i = 0; i < (readLength); i++) {
-    arrayOut[i] = SPItransfer(00)<<8 | SPItransfer(00);
+    arrayOut[i] = SPItransfer(00) << 8 | SPItransfer(00);
     EpsonBurstStall2();
   }
 
@@ -645,7 +645,7 @@ void SPI_EPSON_COM::readNB (uint16_t* arrayOut, uint8_t addr, uint8_t readLength
     SerialConsole.println(arrayOut[i], HEX);
   }
 #endif
-  //release ChipSelect
+  // release ChipSelect
   digitalWrite(_cs, HIGH);
 }
 
@@ -665,24 +665,24 @@ void SPI_EPSON_COM::readNB (uint16_t* arrayOut, uint8_t addr, uint8_t readLength
                  (excluding the header & delimiter bytes)
 */
 /**************************************************************************/
-void SPI_EPSON_COM::readN (uint16_t* arrayOut, uint8_t addr, uint8_t readLength) {
-
+void SPI_EPSON_COM::readN(uint16_t* arrayOut, uint8_t addr,
+                          uint8_t readLength) {
   // set ChipSelect
   digitalWrite(_cs, LOW);
 
   // send the starting address to be read
-  SPItransfer(addr); // address
-  SPItransfer(00);   // dummy byte
+  SPItransfer(addr);  // address
+  SPItransfer(00);    // dummy byte
 
   // delay after 1st command
   EpsonStall();
 
-  //Increment the address by 2
+  // Increment the address by 2
   addr = addr + 2;
 
   // read the required number of words
   for (int8_t i = 0; i < (readLength); i++) {
-    arrayOut[i] = SPItransfer(addr)<<8 | SPItransfer(00);
+    arrayOut[i] = SPItransfer(addr) << 8 | SPItransfer(00);
     EpsonStall();
     addr = addr + 2;
   }
@@ -692,10 +692,9 @@ void SPI_EPSON_COM::readN (uint16_t* arrayOut, uint8_t addr, uint8_t readLength)
     SerialConsole.println(arrayOut[i], HEX);
   }
 #endif
-  //release ChipSelect
+  // release ChipSelect
   digitalWrite(_cs, HIGH);
 }
-
 
 /**************************************************************************/
 /*!
@@ -709,14 +708,13 @@ void SPI_EPSON_COM::readN (uint16_t* arrayOut, uint8_t addr, uint8_t readLength)
 */
 /**************************************************************************/
 void SPI_EPSON_COM::getProdID(char* prodID) {
-
   uint8_t i;
 
-  //read model name from registers, stored as ascii values
+  // read model name from registers, stored as ascii values
   for (i = 0; i < 8; i = i + 2) {
     uint16_t retVal = regRead16(CMD_WINDOW1, ADDR_PROD_ID1 + i);
-    prodID[i] = (char) (retVal & 0xFF);
-    prodID[i + 1] = (char) (retVal>>8);
+    prodID[i] = (char)(retVal & 0xFF);
+    prodID[i + 1] = (char)(retVal >> 8);
 #ifdef DEBUG
     // Print Return Values 16-bit
     SerialConsole.print(i, HEX);
@@ -727,7 +725,7 @@ void SPI_EPSON_COM::getProdID(char* prodID) {
   prodID[i] = 0x00;  // add NULL terminator to make it a string
 #ifdef DEBUG
   // Print Return Values 8-bit
-  for(int8_t j = 0; j < 9; j++) {
+  for (int8_t j = 0; j < 9; j++) {
     SerialConsole.println(prodID[j], HEX);
   }
 #endif
@@ -741,10 +739,8 @@ void SPI_EPSON_COM::getProdID(char* prodID) {
 */
 /**************************************************************************/
 uint16_t SPI_EPSON_COM::getVersion(void) {
-
   return regRead16(CMD_WINDOW1, ADDR_VERSION);
 }
-
 
 /**************************************************************************/
 /*!
@@ -756,19 +752,16 @@ uint16_t SPI_EPSON_COM::getVersion(void) {
 */
 /**************************************************************************/
 void SPI_EPSON_COM::getSerialNumber(char* serialNumber) {
-
   uint8_t i;
 
-  //read serial number from registers, stored as ascii values
+  // read serial number from registers, stored as ascii values
   for (i = 0; i < 8; i = i + 2) {
     uint16_t retVal = regRead16(CMD_WINDOW1, ADDR_SERIAL_NUM1 + i);
-    serialNumber[i] = (char) (retVal & 0xFF);
-    serialNumber[i + 1] = (char) (retVal>>8);
+    serialNumber[i] = (char)(retVal & 0xFF);
+    serialNumber[i + 1] = (char)(retVal >> 8);
   }
   serialNumber[i] = 0x00;  // add NULL terminator to make it a string
-
 }
-
 
 /**************************************************************************/
 /*!
@@ -780,8 +773,7 @@ void SPI_EPSON_COM::getSerialNumber(char* serialNumber) {
 */
 /**************************************************************************/
 uint8_t SPI_EPSON_COM::SPItransfer(uint8_t x) {
-
-  if (_clk == -1) {  //Hardware SPI
+  if (_clk == -1) {  // Hardware SPI
 #ifdef __SAM3X8E__
     // For Hardware SPI on DUE
     return SPI.transfer(_cs, x);
@@ -789,17 +781,15 @@ uint8_t SPI_EPSON_COM::SPItransfer(uint8_t x) {
     // For Hardware SPI on non-DUE
     return SPI.transfer(x);
 #endif
-  }
-  else {  //For Software Emulated SPI
+  } else {  // For Software Emulated SPI
     uint8_t reply = 0;
 
-    for (int i=7; i>=0; i--) {
+    for (int i = 7; i >= 0; i--) {
       reply <<= 1;
       digitalWrite(_clk, LOW);
-      digitalWrite(_mosi, x & (1<<i));
+      digitalWrite(_mosi, x & (1 << i));
       digitalWrite(_clk, HIGH);
-      if (digitalRead(_miso))
-        reply |= 1;
+      if (digitalRead(_miso)) reply |= 1;
     }
     return reply;
   }
